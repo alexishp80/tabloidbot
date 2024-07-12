@@ -20,6 +20,9 @@ async def add(ctx):
     perp = ctx.message.author
     for mention in mentionsList:
         victims.append(mention.display_name)
+
+
+    #do sql stuff here
     await ctx.send(f"{perp.display_name} has tabloided {" ".join(victims)}")
 
 #@bot.command(name='leaderboard', help='Shows global statistics of the tabloid')
@@ -42,6 +45,26 @@ async def on_ready():
     for guild in bot.guilds:
         if guild.name == GUILD:
             break
+    
+    conn = sqlite3.connect('test.db')
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS player_list (
+             discord_username string NOT NULL,
+             name string NOT NULL,
+             tabloids,
+             times_tabloided,
+             ratio
+             )""")
+    c.execute('insert into player_list(discord_username, name, tabloids, times_tabloided, ratio) values(?, ?, ?, ?, ?)', ('bonk username', 'bonk name', 1, 0, 1))
+    #want to dm everyone with current members role to set this table up
+    c.execute("""CREATE TABLE IF NOT EXISTS tabloid_list (
+             id,
+             perp string NOT NULL,
+             victims
+             )""")
+    c.execute('insert into tabloid_list(id, perp, victims) values(?, ?, ?)', (0, 'tenderbread', 'tenderbread,alexis'))
+    #storing victims will probably require stringifying a list, which can then be converted back into a list if edits are needed
+    conn.commit()
 
     print(
         f'{bot.user.name} is connected to the following guild:\n'
