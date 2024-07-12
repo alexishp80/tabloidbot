@@ -1,6 +1,7 @@
 # bot.py
 import os
-import random
+import sqlite3
+import pandas as pd
 import discord
 from dotenv import load_dotenv
 from discord.ext import commands
