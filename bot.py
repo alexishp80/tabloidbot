@@ -15,14 +15,34 @@ bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 
 @bot.command(name='tabloid', help='Tabloids another CNET')
 async def add(ctx):
+    for guild in bot.guilds:
+        if guild.name == GUILD:
+            break
     mentionsList = ctx.message.mentions
     victims = []
     perp = ctx.message.author
+    
+    conn = sqlite3.connect('test.db')
+    c = conn.cursor()
+    #get current value
+    c.execute("""SELECT tabloids from ?_player_list WHERE discord_username = ?""", (guild.id, perp.display_name))
+    record = c.fetchall
+    #update table
+    c.execute("""UPDATE ?_player_list (
+             SET tabloids = ?
+             WHERE discord_username = ?
+             )""", (guild.id, int(record[0][0])+1, perp.display_name))   
+     
     for mention in mentionsList:
-        victims.append(mention.display_name)
-
-
-    #do sql stuff here
+        c.execute("""SELECT tabloids from ?_player_list WHERE discord_username = ?""", (guild.id, mention.display_name))
+        record = c.fetchall
+        c.execute("""UPDATE ?_player_list (
+             SET times_tabloided = ?
+             WHERE discord_username = ?
+             )""", (guild.id, int(record[0][0])+1, mention.display_name))
+        conn.commit()
+    conn.close
+    
     await ctx.send(f"{perp.display_name} has tabloided {" ".join(victims)}")
 
 #@bot.command(name='leaderboard', help='Shows global statistics of the tabloid')
@@ -32,13 +52,8 @@ async def add(ctx):
 #@bot.command(name='stats', help='Shows your personal statistics')
 #provide stats for the user who called the command
 
-
-### Restricted to leadership roles ###
-#@bot.command(name='amend', help='Fixes a previous tabloid')
-#will take in a id which matches the line in the database, used to fix entries if needed
-
-#@bot.command(name='delete', help='Deletes a previous tabloid')
-#will delete an entry given the id
+#@bot.command(name='name', help='Associate your name with your username')
+#add text to the username list table
 
 @bot.event
 async def on_ready():
@@ -48,22 +63,17 @@ async def on_ready():
     
     conn = sqlite3.connect('test.db')
     c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS player_list (
+    c.execute("""CREATE TABLE IF NOT EXISTS {guild.id}_player_list (
              discord_username string NOT NULL,
              name string NOT NULL,
              tabloids,
              times_tabloided,
-             ratio
              )""")
-    c.execute('insert into player_list(discord_username, name, tabloids, times_tabloided, ratio) values(?, ?, ?, ?, ?)', ('bonk username', 'bonk name', 1, 0, 1))
-    #want to dm everyone with current members role to set this table up
-    c.execute("""CREATE TABLE IF NOT EXISTS tabloid_list (
-             id,
-             perp string NOT NULL,
-             victims
+    #c.execute('insert into player_list(discord_username, name, tabloids, times_tabloided, ratio) values(?, ?, ?, ?, ?)', ('bonk username', 'bonk name', 1, 0))
+    c.execute("""CREATE TABLE IF NOT EXISTS {guild.id}_username_list (
+             discord_username string NOT NULL,
+             name string NOT NULL
              )""")
-    c.execute('insert into tabloid_list(id, perp, victims) values(?, ?, ?)', (0, 'tenderbread', 'tenderbread,alexis'))
-    #storing victims will probably require stringifying a list, which can then be converted back into a list if edits are needed
     conn.commit()
 
     print(
