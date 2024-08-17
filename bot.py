@@ -46,10 +46,9 @@ async def add(ctx):
              ;""", (int(record)+1, mention.name))
         conn.commit()
     conn.close
-    await ctx.send(f"{perp.display_name} has tabloided {", ".join(victims)}")
-
+    await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
 def embedrow(row, em):
-        em.add_field(name=f'**{row['discord_username']}**', value=f'> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}',inline=False)
+        em.add_field(name=f"**{row['discord_username']}**", value=f"> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}",inline=False)
     
 #queries database and produces a leaderboard
 #with different sortings, such as tabloids, tabloided, and k/d
@@ -114,7 +113,7 @@ async def stats(ctx):
 
     embed = discord.Embed(title=f"{ctx.message.author.name}'s stats", color=0x00ff00)
     df = df.head(1)
-    embed.add_field(name=f'**Tabloids: {df['tabloids'][0]}**', value=f'** Times Tabloided: {df['times_tabloided'][0]}\n K/D Ratio: {df['kd'][0]}**',inline=False)
+    embed.add_field(name=f"**Tabloids: {df['tabloids'][0]}**", value=f"** Times Tabloided: {df['times_tabloided'][0]}\n K/D Ratio: {df['kd'][0]}**",inline=False)
     await ctx.send(embed=embed)
 
 #@bot.command(name='name', help='Associate your name with your username')
