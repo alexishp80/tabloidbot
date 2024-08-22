@@ -46,11 +46,24 @@ async def add(ctx):
              ;""", (int(record)+1, mention.name))
         conn.commit()
     conn.close
-    await ctx.send(f"{perp.display_name} has tabloided {", ".join(victims)}")
+    await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
 
 def embedrow(row, em):
-        em.add_field(name=f'**{row['discord_username']}**', value=f'> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}',inline=False)
-    
+        if row['name'] is None:
+            em.add_field(name=f'**{row['discord_username']}**', value=f'> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}',inline=False)
+        else:
+            em.add_field(name=f'**{row['name']}**', value=f'> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}',inline=False)
+def fun(row):
+    conn = sqlite3.connect('test.db')
+    c = conn.cursor()
+    c.execute("""SELECT name from username_list WHERE discord_username = ?""", (row['discord_username'],))
+    record = c.fetchone()
+    if record is None:
+        return
+    else:
+        record = record[0]
+        conn.close
+        return record
 #queries database and produces a leaderboard
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
@@ -62,25 +75,27 @@ async def leaderboard(ctx, *arg):
     df['kd'] = df['tabloids']/df['times_tabloided']
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.fillna('-')
+    df['name'] = df.apply(fun, axis=1)
+
 
     if(arg == "kd"):
         df = df.sort_values('kd')
         df = df.head(5)
-        embed = discord.Embed(title="K/D Ratio Leaderboard", description="Desc", color=0x00ff00)
+        embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
     elif(arg == "tabloided"):
         df = df.sort_values('times_tabloided')
         df = df.head(5)
-        embed = discord.Embed(title="Tabloided Leaderboard", description="Desc", color=0x00ff00)
+        embed = discord.Embed(title="Tabloided Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
     else:
         df = df.sort_values('tabloids')
         df = df.head(5)
-        embed = discord.Embed(title="Tabloids Leaderboard", description="Desc", color=0x00ff00)
+        embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
@@ -117,9 +132,16 @@ async def stats(ctx):
     embed.add_field(name=f'**Tabloids: {df['tabloids'][0]}**', value=f'** Times Tabloided: {df['times_tabloided'][0]}\n K/D Ratio: {df['kd'][0]}**',inline=False)
     await ctx.send(embed=embed)
 
-#@bot.command(name='name', help='Associate your name with your username')
+@bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
-
+async def name(ctx, arg):
+    perp = ctx.message.author
+    conn = sqlite3.connect('test.db')
+    c = conn.cursor()
+    c.execute("""INSERT OR REPLACE INTO username_list (discord_username, name) VALUES (?, ?)""", (perp.name, arg))
+    conn.commit()
+    conn.close
+    await ctx.send("Name updated")
 @bot.event
 async def on_ready():
     for guild in bot.guilds:
@@ -129,14 +151,12 @@ async def on_ready():
     conn = sqlite3.connect('test.db')
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS {}(
-             discord_username string NOT NULL,
+             discord_username string NOT NULL UNIQUE,
              tabloids,
              times_tabloided
              )""".format("player_list"))
-    #c.execute('insert into player_list(discord_username, tabloids, times_tabloided) values(?, ?, ?)', ('tenderbread', 0, 0))
-    #c.execute('insert into player_list(discord_username, tabloids, times_tabloided) values(?, ?, ?)', ('acastillo210', 0, 0))
     c.execute("""CREATE TABLE IF NOT EXISTS {} (
-             discord_username string NOT NULL,
+             discord_username string NOT NULL UNIQUE,
              name string NOT NULL
              )""".format("username_list"))
     conn.commit()
