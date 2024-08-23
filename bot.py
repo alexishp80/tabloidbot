@@ -11,8 +11,10 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 
-
-bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
+help_command = commands.DefaultHelpCommand(
+    no_category = 'Commands'
+)
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command = help_command)
 
 @bot.command(name='tabloid', help='Tabloids another CNET')
 async def add(ctx):
@@ -23,6 +25,11 @@ async def add(ctx):
     victims = []
     perp = ctx.message.author
     
+    if not mentionsList: 
+        #list is empty
+        await ctx.send(f"<@{perp.id}> Please mention your victim(s)!")
+        return
+
     conn = sqlite3.connect('test.db')
     c = conn.cursor()
     c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (perp.name,))
@@ -73,32 +80,39 @@ async def leaderboard(ctx, *arg):
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
     df['kd'] = df['tabloids']/df['times_tabloided']
-    df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    df = df.fillna('-')
-    df['name'] = df.apply(fun, axis=1)
-
-
-    if(arg == "kd"):
-        df = df.sort_values('kd')
+    df.replace([np.inf, -np.inf], np.inf, inplace=True)
+    if not arg or arg[0] == "tabloids":
+        df = df.sort_values('tabloids', ascending=[False])
         df = df.head(5)
-        embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await ctx.send(embed=embed)
-    elif(arg == "tabloided"):
-        df = df.sort_values('times_tabloided')
-        df = df.head(5)
-        embed = discord.Embed(title="Tabloided Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await ctx.send(embed=embed)
-    else:
-        df = df.sort_values('tabloids')
-        df = df.head(5)
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        df = df.fillna('-')
+        df['name'] = df.apply(fun, axis=1)
         embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
+    elif(arg[0] == "kd"):
+        df = df.sort_values('kd', ascending=[False])
+        df = df.head(5)
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        df = df.fillna('-')
+        df['name'] = df.apply(fun, axis=1)
+        embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
+        df.apply(embedrow, axis=1, em=embed)
+        conn.close
+        await ctx.send(embed=embed)
+    elif(arg[0] == "tabloided"):
+        df = df.sort_values('times_tabloided', ascending=[False])
+        df = df.head(5)
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        df = df.fillna('-')
+        df['name'] = df.apply(fun, axis=1)
+        embed = discord.Embed(title="Most Tabloided Leaderboard", color=0x00ff00)
+        df.apply(embedrow, axis=1, em=embed)
+        conn.close
+        await ctx.send(embed=embed)
+    else:
+        return
 
 #whole leaderboard
 @bot.command(name='global', help='Shows global statistics')
@@ -110,9 +124,12 @@ async def global_leaderboard(ctx):
     df['kd'] = df['tabloids']/df['times_tabloided']
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.sort_values('tabloids')
+    df2 = pd.DataFrame({'name': []})
+    df2['name'] = df.apply(fun, axis=1)
+    df = pd.concat([df2, df], axis=1)
     df = df.fillna('-')
     conn.close
-    await ctx.send(f"```{df.head}```")
+    await ctx.send(f"```{df.head()}```")
 
 #provide stats for the user who called the command
 @bot.command(name='stats', help='Shows your personal statistics')
