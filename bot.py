@@ -12,11 +12,11 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 
 help_command = commands.DefaultHelpCommand(
-    no_category = 'Commands'
+    no_category = 'Commands',
 )
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command = help_command)
 
-@bot.command(name='tabloid', help='Tabloids another CNET')
+@bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.')
 async def add(ctx):
     for guild in bot.guilds:
         if guild.name == GUILD:
@@ -40,7 +40,7 @@ async def add(ctx):
     c.execute("""UPDATE player_list
              SET tabloids = ?
              WHERE discord_username = ?
-             ;""", (int(record)+1, perp.name))   
+             ;""", (int(record)+len(mentionsList), perp.name))   
      
     for mention in mentionsList:
         victims.append(mention.display_name)
@@ -54,8 +54,46 @@ async def add(ctx):
         conn.commit()
     conn.close
     await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
+
+
+@bot.command(name='undo', help='Undo a tabloid. For leadership use only.')
+async def sub(ctx):
+    for guild in bot.guilds:
+        if guild.name == GUILD:
+            break
+    if "section leader" in [role.name for role in ctx.author.roles] or "squid leader" in [role.name for role in ctx.author.roles]:
+        victims = []
+        mentionsList = ctx.message.mentions[1:]
+        perp = ctx.message.mentions[0]
+        
+        conn = sqlite3.connect('test.db')
+        c = conn.cursor()
+        #get current value
+        c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
+        record = c.fetchone()[0]
+        #update table
+        c.execute("""UPDATE player_list
+                SET tabloids = ?
+                WHERE discord_username = ?
+                ;""", (int(record)-len(mentionsList), perp.name))   
+        
+        for mention in mentionsList:
+            victims.append(mention.display_name)
+            c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
+            c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
+            record = c.fetchone()[0]
+            c.execute("""UPDATE player_list 
+                SET times_tabloided = ?
+                WHERE discord_username = ?
+                ;""", (int(record)-1, mention.name))
+            conn.commit()
+        conn.close
+        await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
+    else:
+        await ctx.send(f"Please contact leadership to run this command")
+
+
 def embedrow(row, em):
-        em.add_field(name=f"**{row['discord_username']}**", value=f"> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}",inline=False)
         if row['name'] is None:
             em.add_field(name=f"**{row['discord_username']}**", value=f"> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}",inline=False)
         else:
@@ -74,14 +112,15 @@ def fun(row):
 #queries database and produces a leaderboard
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
-async def leaderboard(ctx, *arg):
+async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
     conn = sqlite3.connect('test.db')
     c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
     df['kd'] = df['tabloids']/df['times_tabloided']
     df.replace([np.inf, -np.inf], np.inf, inplace=True)
-    if not arg or arg[0] == "tabloids":
+    print(arg)
+    if arg is None or arg == "tabloids":
         df = df.sort_values('tabloids', ascending=[False])
         df = df.head(5)
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
@@ -91,7 +130,8 @@ async def leaderboard(ctx, *arg):
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
-    elif(arg[0] == "kd"):
+        return
+    elif(arg == "kd"):
         df = df.sort_values('kd', ascending=[False])
         df = df.head(5)
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
@@ -101,7 +141,8 @@ async def leaderboard(ctx, *arg):
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
-    elif(arg[0] == "tabloided"):
+        return
+    elif(arg == "tabloided"):
         df = df.sort_values('times_tabloided', ascending=[False])
         df = df.head(5)
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
@@ -111,6 +152,7 @@ async def leaderboard(ctx, *arg):
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
+        return
     else:
         return
 
@@ -151,7 +193,7 @@ async def stats(ctx):
 
 @bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
-async def name(ctx, arg):
+async def name(ctx, arg: str = commands.parameter(description="Your name")):
     perp = ctx.message.author
     conn = sqlite3.connect('test.db')
     c = conn.cursor()
@@ -159,6 +201,13 @@ async def name(ctx, arg):
     conn.commit()
     conn.close
     await ctx.send("Name updated")
+
+@bot.command(name='docs', help='Provides link for more in-depth documentation')
+async def docs(ctx):
+    embed = discord.Embed(color=0x00ff00)
+    embed.add_field(name='Documentation', value="[Here you go!](https://github.com/alexishp80/tabloidbot/blob/main/docs/usage.md)")
+    await ctx.send(embed=embed)
+
 @bot.event
 async def on_ready():
     for guild in bot.guilds:
