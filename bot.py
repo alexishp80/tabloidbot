@@ -18,42 +18,45 @@ bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_comma
 
 @bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.')
 async def add(ctx):
-    for guild in bot.guilds:
-        if guild.name == GUILD:
-            break
-    mentionsList = ctx.message.mentions
-    victims = []
-    perp = ctx.message.author
-    
-    if not mentionsList: 
-        #list is empty
-        await ctx.send(f"<@{perp.id}> Please mention your victim(s)!")
-        return
+    if ctx.message.attachments:
+        for guild in bot.guilds:
+            if guild.name == GUILD:
+                break
+        mentionsList = ctx.message.mentions
+        victims = []
+        perp = ctx.message.author
+        
+        if not mentionsList: 
+            #list is empty
+            await ctx.send(f"<@{perp.id}> Please mention your victim(s)!")
+            return
 
-    conn = sqlite3.connect('test.db')
-    c = conn.cursor()
-    c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (perp.name,))
-    #get current value
-    c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
-    record = c.fetchone()[0]
-    #update table
-    c.execute("""UPDATE player_list
-             SET tabloids = ?
-             WHERE discord_username = ?
-             ;""", (int(record)+len(mentionsList), perp.name))   
-     
-    for mention in mentionsList:
-        victims.append(mention.display_name)
-        c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
-        c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
+        conn = sqlite3.connect('test.db')
+        c = conn.cursor()
+        c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (perp.name,))
+        #get current value
+        c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
         record = c.fetchone()[0]
-        c.execute("""UPDATE player_list 
-             SET times_tabloided = ?
-             WHERE discord_username = ?
-             ;""", (int(record)+1, mention.name))
-        conn.commit()
-    conn.close
-    await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
+        #update table
+        c.execute("""UPDATE player_list
+                SET tabloids = ?
+                WHERE discord_username = ?
+                ;""", (int(record)+len(mentionsList), perp.name))   
+        
+        for mention in mentionsList:
+            victims.append(mention.display_name)
+            c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
+            c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
+            record = c.fetchone()[0]
+            c.execute("""UPDATE player_list 
+                SET times_tabloided = ?
+                WHERE discord_username = ?
+                ;""", (int(record)+1, mention.name))
+            conn.commit()
+        conn.close
+        await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
+    else:
+        await ctx.send(f"Please include your tabloid photo with your message.")
 
 
 @bot.command(name='undo', help='Undo a tabloid. For leadership use only.')
