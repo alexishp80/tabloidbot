@@ -31,7 +31,7 @@ async def add(ctx):
             await ctx.send(f"<@{perp.id}> Please mention your victim(s)!")
             return
 
-        conn = sqlite3.connect('test.db')
+        conn = sqlite3.connect('cnets24.db')
         c = conn.cursor()
         c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (perp.name,))
         #get current value
@@ -69,7 +69,7 @@ async def sub(ctx):
         mentionsList = ctx.message.mentions[1:]
         perp = ctx.message.mentions[0]
         
-        conn = sqlite3.connect('test.db')
+        conn = sqlite3.connect('cnets24.db')
         c = conn.cursor()
         #get current value
         c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
@@ -102,7 +102,7 @@ def embedrow(row, em):
         else:
             em.add_field(name=f"**{row['name']}**", value=f"> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}",inline=False)
 def fun(row):
-    conn = sqlite3.connect('test.db')
+    conn = sqlite3.connect('cnets24.db')
     c = conn.cursor()
     c.execute("""SELECT name from username_list WHERE discord_username = ?""", (row['discord_username'],))
     record = c.fetchone()
@@ -116,13 +116,12 @@ def fun(row):
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
 async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
-    conn = sqlite3.connect('test.db')
+    conn = sqlite3.connect('cnets24.db')
     c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
     df['kd'] = df['tabloids']/df['times_tabloided']
     df.replace([np.inf, -np.inf], np.inf, inplace=True)
-    print(arg)
     if arg is None or arg == "tabloids":
         df = df.sort_values('tabloids', ascending=[False])
         df = df.head(5)
@@ -162,7 +161,7 @@ async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", de
 #whole leaderboard
 @bot.command(name='global', help='Shows global statistics')
 async def global_leaderboard(ctx):
-    conn = sqlite3.connect('test.db')
+    conn = sqlite3.connect('cnets24.db')
     c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
@@ -179,7 +178,7 @@ async def global_leaderboard(ctx):
 #provide stats for the user who called the command
 @bot.command(name='stats', help='Shows your personal statistics')
 async def stats(ctx):
-    conn = sqlite3.connect('test.db')
+    conn = sqlite3.connect('cnets24.db')
     c = conn.cursor()
     query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
     df = pd.read_sql(query, conn)
@@ -198,7 +197,7 @@ async def stats(ctx):
 #add text to the username list table
 async def name(ctx, arg: str = commands.parameter(description="Your name")):
     perp = ctx.message.author
-    conn = sqlite3.connect('test.db')
+    conn = sqlite3.connect('cnets24.db')
     c = conn.cursor()
     c.execute("""INSERT OR REPLACE INTO username_list (discord_username, name) VALUES (?, ?)""", (perp.name, arg))
     conn.commit()
@@ -217,7 +216,7 @@ async def on_ready():
         if guild.name == GUILD:
             break
     
-    conn = sqlite3.connect('test.db')
+    conn = sqlite3.connect('cnets24.db')
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS {}(
              discord_username string NOT NULL UNIQUE,
