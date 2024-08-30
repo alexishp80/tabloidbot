@@ -67,7 +67,7 @@ async def sub(ctx):
     for guild in bot.guilds:
         if guild.name == GUILD:
             break
-    if "section leader" in [role.name for role in ctx.author.roles] or "squid leaders" in [role.name for role in ctx.author.roles]:
+    if "section leader" in [role.name for role in ctx.author.roles] or "squid leaders" in [role.name for role in ctx.author.roles] or ctx.message.author == ctx.message.mentions[0]:
         victims = []
         mentionsList = ctx.message.mentions[1:]
         perp = ctx.message.mentions[0]
@@ -97,7 +97,7 @@ async def sub(ctx):
         await ctx.message.add_reaction("✅")
         #await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
     else:
-        await ctx.send(f"Please contact leadership to run this command")
+        await ctx.send(f"Please contact leadership to run this command, or make sure to mention yourself.")
 
 
 def embedrow(row, em):
