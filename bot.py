@@ -124,7 +124,7 @@ async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", de
     c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
-    df['kd'] = df['tabloids']/df['times_tabloided']
+    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.inf, inplace=True)
     if arg is None or arg == "tabloids":
         df = df.sort_values('tabloids', ascending=[False])
