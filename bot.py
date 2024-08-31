@@ -169,7 +169,7 @@ async def global_leaderboard(ctx):
     c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
-    df['kd'] = df['tabloids']/df['times_tabloided']
+    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.sort_values('tabloids', ascending=[False])
     df2 = pd.DataFrame({'name': []})
@@ -195,7 +195,7 @@ async def stats(ctx):
     query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
     df = pd.read_sql(query, conn)
 
-    df['kd'] = df['tabloids']/df['times_tabloided']
+    df['kd'] = round(df['tabloids']/df['times_tabloided'], 6)
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.fillna('-')
     conn.close
