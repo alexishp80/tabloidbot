@@ -4,8 +4,8 @@ import sqlite3
 import pandas as pd
 import numpy as np
 import discord
+import Paginator
 from dotenv import load_dotenv
-from disputils import BotEmbedPaginator
 from discord.ext import commands
 
 load_dotenv()
@@ -119,7 +119,7 @@ def fun(row):
 #queries database and produces a leaderboard
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
-async def leaderboard(ctx, arg):
+async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     query = 'SELECT * from player_list'
@@ -184,8 +184,7 @@ async def global_leaderboard(ctx):
     df_1.apply(embedrow, axis=1, em=embed)
     df_2.apply(embedrow, axis=1, em=embed2)
     embeds = [embed, embed2]
-    paginator = BotEmbedPaginator(ctx, embeds)
-    await paginator.run()
+    await Paginator.Simple().start(ctx, pages=embeds)
     
 
 #provide stats for the user who called the command
@@ -208,7 +207,7 @@ async def stats(ctx):
 
 @bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
-async def name(ctx, arg):
+async def name(ctx, arg: str = commands.parameter(description="Your name")):
     perp = ctx.message.author
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
