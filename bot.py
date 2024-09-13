@@ -68,36 +68,40 @@ async def sub(ctx):
         if guild.name == GUILD:
             break
     if "section leader" in [role.name for role in ctx.author.roles] or "squid leaders" in [role.name for role in ctx.author.roles] or ctx.message.author == ctx.message.mentions[0]:
+        
         victims = []
         mentionsList = ctx.message.mentions[1:]
         perp = ctx.message.mentions[0]
         
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        #get current value
-        c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
-        record = c.fetchone()[0]
-        #update table
-        c.execute("""UPDATE player_list
-                SET tabloids = ?
-                WHERE discord_username = ?
-                ;""", (int(record)-len(mentionsList), perp.name))   
-        
-        for mention in mentionsList:
-            victims.append(mention.display_name)
-            c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
-            c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
+        if not mentionsList:
+            await ctx.send(f"Make sure to mention yourself and your innocent victim.")
+        else:
+            conn = sqlite3.connect(DATABASE)
+            c = conn.cursor()
+            #get current value
+            c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
             record = c.fetchone()[0]
-            c.execute("""UPDATE player_list 
-                SET times_tabloided = ?
-                WHERE discord_username = ?
-                ;""", (int(record)-1, mention.name))
-            conn.commit()
-        conn.close
-        await ctx.message.add_reaction("✅")
-        #await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
+            #update table
+            c.execute("""UPDATE player_list
+                    SET tabloids = ?
+                    WHERE discord_username = ?
+                    ;""", (int(record)-len(mentionsList), perp.name))   
+            
+            for mention in mentionsList:
+                victims.append(mention.display_name)
+                c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
+                c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
+                record = c.fetchone()[0]
+                c.execute("""UPDATE player_list 
+                    SET times_tabloided = ?
+                    WHERE discord_username = ?
+                    ;""", (int(record)-1, mention.name))
+                conn.commit()
+            conn.close
+            await ctx.message.add_reaction("✅")
+            #await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
     else:
-        await ctx.send(f"Please contact leadership to run this command, or make sure to mention yourself.")
+        await ctx.send(f"Please contact leadership to run this command.")
 
 
 def embedrow(row, em):
