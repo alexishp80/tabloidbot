@@ -199,7 +199,7 @@ async def stats(ctx):
     query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
     df = pd.read_sql(query, conn)
 
-    df['kd'] = round(df['tabloids']/df['times_tabloided'], 6)
+    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.fillna('-')
     conn.close
