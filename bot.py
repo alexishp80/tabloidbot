@@ -62,7 +62,7 @@ async def add(ctx):
         await ctx.send(f"Please include your tabloid photo with your message.")
 
 
-@bot.command(name='undo', help='Undo a tabloid. For leadership use only.')
+@bot.command(name='undo', help='Undo a tabloid.')
 async def sub(ctx):
     for guild in bot.guilds:
         if guild.name == GUILD:
