@@ -12,13 +12,14 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 DATABASE = os.getenv('DATABASE')
+BENCHMARKS = [1, 10, 25, 50, 100]
 
 help_command = commands.DefaultHelpCommand(
     no_category = 'Commands',
 )
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command = help_command)
 
-@bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.')
+@bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.', aliases=["tb"])
 async def add(ctx):
     if ctx.message.attachments:
         for guild in bot.guilds:
@@ -58,8 +59,20 @@ async def add(ctx):
         conn.close
         await ctx.message.add_reaction("📸")
         #await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
+        await benchmarks(perp)
     else:
         await ctx.send(f"Please include your tabloid photo with your message.")
+async def benchmarks(user):
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (user.name,))
+    record = int(c.fetchone()[0])
+    conn.close()
+    # benchmarks are defined in top of document
+    if record in BENCHMARKS:
+        embed = discord.Embed(color=0x00ff00)
+        embed.add_field(value=f">{user.name} has reached {record} tabloids!",inline=False)
+
 
 
 @bot.command(name='undo', help='Undo a tabloid.')
@@ -106,9 +119,9 @@ async def sub(ctx):
 
 def embedrow(row, em):
         if row['name'] == "-" or row['name'] is None:
-            em.add_field(name=f"**{row['discord_username']}**", value=f"> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}",inline=False)
+            em.add_field(name=f"**{row['discord_username']}**", value=f"> Tabloids: {row['tabloids']}\n>Times Tabloided: {row['times_tabloided']}\n>K/D Ratio: {row['kd']}",inline=False)
         else:
-            em.add_field(name=f"**{row['name']}**", value=f"> Tabloids: {row['tabloids']}\n> Times Tabloided: {row['times_tabloided']}\n> K/D Ratio: {row['kd']}",inline=False)
+            em.add_field(name=f"**{row['name']}**", value=f"> Tabloids: {row['tabloids']}\n>Times Tabloided: {row['times_tabloided']}\n>K/D Ratio: {row['kd']}",inline=False)
 def fun(row):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -130,24 +143,24 @@ async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", de
     df = pd.read_sql(query, conn)
     df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.inf, inplace=True)
-    if arg is None or arg == "tabloids":
-        df = df.sort_values('tabloids', ascending=[False])
-        df = df.head(5)
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df = df.fillna('-')
-        df['name'] = df.apply(fun, axis=1)
-        embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await ctx.send(embed=embed)
-        return
-    elif(arg == "kd"):
+    if arg is None or arg == "kd":
         df = df.sort_values('kd', ascending=[False])
         df = df.head(5)
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
         df = df.fillna('-')
         df['name'] = df.apply(fun, axis=1)
         embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
+        df.apply(embedrow, axis=1, em=embed)
+        conn.close
+        await ctx.send(embed=embed)
+        return
+    elif(arg == "tabloids"):
+        df = df.sort_values('tabloids', ascending=[False])
+        df = df.head(5)
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        df = df.fillna('-')
+        df['name'] = df.apply(fun, axis=1)
+        embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
         await ctx.send(embed=embed)
@@ -206,7 +219,7 @@ async def stats(ctx):
 
     embed = discord.Embed(title=f"{ctx.message.author.name}'s stats", color=0x00ff00)
     df = df.head(1)
-    embed.add_field(name=f"**Tabloids: {df['tabloids'][0]}**", value=f"** Times Tabloided: {df['times_tabloided'][0]}\n K/D Ratio: {df['kd'][0]}**",inline=False)
+    embed.add_field(name=f"**Tabloids: {df['tabloids'][0]}**", value=f"**Times Tabloided: {df['times_tabloided'][0]}\nK/D Ratio: {df['kd'][0]}**",inline=False)
     await ctx.send(embed=embed)
 
 @bot.command(name='name', help='Associate your name with your username')
@@ -250,5 +263,12 @@ async def on_ready():
         f'{guild.name}(id: {guild.id})'
     )
     print(f'{bot.user.name} has connected to Discord!')
-
+    role = discord.utils.find(lambda r: r.name == 'current members', guild.roles)
+    for member in guild.members:
+        if role in member.roles:
+            await member.send("Hi " + {member.name}+ " welcome to the CNET Tabloid!\nThe rules can be found at https://tinyurl.com/mpmkbx9t\nUsage instructions can be found here: https://tinyurl.com/47ppxbvj")
 bot.run(TOKEN)
+
+
+
+# TO DO: test all the things; and work on implementation for restricting command usage to DMs; update documentation accordingly
