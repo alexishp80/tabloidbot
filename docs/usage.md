@@ -14,9 +14,9 @@ Discord bots are automated programs that can add additional functionality to a s
 
 `!leaderboard`: This shows the top 5 players along with their stats. The default is sorting by K/D, but you can also use `!leaderboard tabloids` or `!leaderboard tabloided` to sort by those respective values. 
 
-`!global`: This shows a global leaderboard with every player. Since the list is so long, the results need to be broken up into pages. Only the person who sent the command can use the buttons to turn the pages, others will experience an error. 
+`!global`: This shows a global leaderboard with every player. Since the list is so long, the results need to be broken up into pages. 
 
-The `!stats`, `!leaderboard`, and `!global` commands can be used in a direct message with the bot if preferred. 
+The `!stats`, `!leaderboard`, and `!global` commands must be used in a direct message with the bot. 
 
 ## Discord Bot Implementation
 The source code for this bot is available [here](https://github.com/alexishp80/tabloidbot). It's a simple implementation written in Python, and runs on a headless Raspberry Pi Zero sitting in my living room. If you're interested in maintaining/running this in the future, reach out to me on Discord [@tenderbread](https://discordapp.com/users/tenderbread). It would be more of a headache to run on campus, but some cursory research has led me to believe it's doable. 

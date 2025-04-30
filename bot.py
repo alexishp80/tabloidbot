@@ -7,7 +7,12 @@ import discord
 import Paginator
 from dotenv import load_dotenv
 from discord.ext import commands
-
+## TO-DO
+## - sanitize sql input
+## - prevent stat commands being used in realm
+## - delete stat commands if used in realm
+## - if db empty, stats, leaderboard, etc show some sort of error
+##
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
@@ -21,7 +26,7 @@ bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_comma
 
 @bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.', aliases=["tb"])
 async def add(ctx):
-    if ctx.message.attachments:
+    #if ctx.message.attachments:
         for guild in bot.guilds:
             if guild.name == GUILD:
                 break
@@ -59,10 +64,11 @@ async def add(ctx):
         conn.close
         await ctx.message.add_reaction("📸")
         #await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
-        await benchmarks(perp)
-    else:
-        await ctx.send(f"Please include your tabloid photo with your message.")
-async def benchmarks(user):
+        await benchmarks(perp, ctx)
+    #else:
+    #    await ctx.send(f"Please include your tabloid photo with your message.")
+
+async def benchmarks(user, ctx):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (user.name,))
@@ -70,8 +76,12 @@ async def benchmarks(user):
     conn.close()
     # benchmarks are defined in top of document
     if record in BENCHMARKS:
-        embed = discord.Embed(color=0x00ff00)
-        embed.add_field(value=f">{user.name} has reached {record} tabloids!",inline=False)
+        user = await bot.fetch_user(ctx.message.author.id)
+        if record == 1:
+            await user.send("Congrats on your first tabloid!")
+        else: 
+            print("bruh")
+            await user.send("You have reached " + record + " tabloids!")
 
 
 
@@ -136,13 +146,17 @@ def fun(row):
 #queries database and produces a leaderboard
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
-async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
+async def leaderboard(ctx, interaction: discord.Interaction, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
+    if(interaction.inGuild()):
+        await ctx.message.delete()
+        interaction.response.send_message("These commands only work in DM's", ephemeral=True)
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
     df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.inf, inplace=True)
+    user = await bot.fetch_user(ctx.message.author.id)
     if arg is None or arg == "kd":
         df = df.sort_values('kd', ascending=[False])
         df = df.head(5)
@@ -152,7 +166,7 @@ async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", de
         embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
-        await ctx.send(embed=embed)
+        await user.send(embed=embed)
         return
     elif(arg == "tabloids"):
         df = df.sort_values('tabloids', ascending=[False])
@@ -163,7 +177,7 @@ async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", de
         embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
-        await ctx.send(embed=embed)
+        await user.send(embed=embed)
         return
     elif(arg == "tabloided"):
         df = df.sort_values('times_tabloided', ascending=[False])
@@ -174,14 +188,17 @@ async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", de
         embed = discord.Embed(title="Most Tabloided Leaderboard", color=0x00ff00)
         df.apply(embedrow, axis=1, em=embed)
         conn.close
-        await ctx.send(embed=embed)
+        await user.send(embed=embed)
         return
     else:
         return
 
 #whole leaderboard
 @bot.command(name='global', help='Shows global statistics')
-async def global_leaderboard(ctx):
+async def global_leaderboard(ctx, interaction: discord.Interaction):
+    if(interaction.inGuild()):
+        await ctx.message.delete()
+        interaction.response.send_message("These commands only work in DM's", ephemeral=True)
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     query = 'SELECT * from player_list'
@@ -206,7 +223,10 @@ async def global_leaderboard(ctx):
 
 #provide stats for the user who called the command
 @bot.command(name='stats', help='Shows your personal statistics')
-async def stats(ctx):
+async def stats(ctx, interaction: discord.Interaction):
+    if(interaction.inGuild()):
+        await ctx.message.delete()
+        interaction.response.send_message("These commands only work in DM's", ephemeral=True)
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
@@ -220,7 +240,8 @@ async def stats(ctx):
     embed = discord.Embed(title=f"{ctx.message.author.name}'s stats", color=0x00ff00)
     df = df.head(1)
     embed.add_field(name=f"**Tabloids: {df['tabloids'][0]}**", value=f"**Times Tabloided: {df['times_tabloided'][0]}\nK/D Ratio: {df['kd'][0]}**",inline=False)
-    await ctx.send(embed=embed)
+    user = await bot.fetch_user(ctx.message.author.id)
+    await user.send(embed=embed)
 
 @bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
