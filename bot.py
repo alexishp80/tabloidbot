@@ -146,102 +146,105 @@ def fun(row):
 #queries database and produces a leaderboard
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
-async def leaderboard(ctx, interaction: discord.Interaction, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
-    if(interaction.inGuild()):
+async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
+    if(ctx.inGuild()):
+        await ctx.reply.message("These commands only work in DM's", ephemeral=True)
         await ctx.message.delete()
-        interaction.response.send_message("These commands only work in DM's", ephemeral=True)
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    query = 'SELECT * from player_list'
-    df = pd.read_sql(query, conn)
-    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
-    df.replace([np.inf, -np.inf], np.inf, inplace=True)
-    user = await bot.fetch_user(ctx.message.author.id)
-    if arg is None or arg == "kd":
-        df = df.sort_values('kd', ascending=[False])
-        df = df.head(5)
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df = df.fillna('-')
-        df['name'] = df.apply(fun, axis=1)
-        embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await user.send(embed=embed)
-        return
-    elif(arg == "tabloids"):
-        df = df.sort_values('tabloids', ascending=[False])
-        df = df.head(5)
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df = df.fillna('-')
-        df['name'] = df.apply(fun, axis=1)
-        embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await user.send(embed=embed)
-        return
-    elif(arg == "tabloided"):
-        df = df.sort_values('times_tabloided', ascending=[False])
-        df = df.head(5)
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df = df.fillna('-')
-        df['name'] = df.apply(fun, axis=1)
-        embed = discord.Embed(title="Most Tabloided Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await user.send(embed=embed)
-        return
-    else:
-        return
+    else: 
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        query = 'SELECT * from player_list'
+        df = pd.read_sql(query, conn)
+        df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
+        df.replace([np.inf, -np.inf], np.inf, inplace=True)
+        user = await bot.fetch_user(ctx.message.author.id)
+        if arg is None or arg == "kd":
+            df = df.sort_values('kd', ascending=[False])
+            df = df.head(5)
+            df.replace([np.inf, -np.inf], np.nan, inplace=True)
+            df = df.fillna('-')
+            df['name'] = df.apply(fun, axis=1)
+            embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
+            df.apply(embedrow, axis=1, em=embed)
+            conn.close
+            await user.send(embed=embed)
+            return
+        elif(arg == "tabloids"):
+            df = df.sort_values('tabloids', ascending=[False])
+            df = df.head(5)
+            df.replace([np.inf, -np.inf], np.nan, inplace=True)
+            df = df.fillna('-')
+            df['name'] = df.apply(fun, axis=1)
+            embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
+            df.apply(embedrow, axis=1, em=embed)
+            conn.close
+            await user.send(embed=embed)
+            return
+        elif(arg == "tabloided"):
+            df = df.sort_values('times_tabloided', ascending=[False])
+            df = df.head(5)
+            df.replace([np.inf, -np.inf], np.nan, inplace=True)
+            df = df.fillna('-')
+            df['name'] = df.apply(fun, axis=1)
+            embed = discord.Embed(title="Most Tabloided Leaderboard", color=0x00ff00)
+            df.apply(embedrow, axis=1, em=embed)
+            conn.close
+            await user.send(embed=embed)
+            return
+        else:
+            return
 
 #whole leaderboard
 @bot.command(name='global', help='Shows global statistics')
 async def global_leaderboard(ctx, interaction: discord.Interaction):
-    if(interaction.inGuild()):
+    if(ctx.inGuild()):
+        await ctx.reply.message("These commands only work in DM's", ephemeral=True)
         await ctx.message.delete()
-        interaction.response.send_message("These commands only work in DM's", ephemeral=True)
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    query = 'SELECT * from player_list'
-    df = pd.read_sql(query, conn)
-    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
-    df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    df = df.sort_values('tabloids', ascending=[False])
-    df2 = pd.DataFrame({'name': []})
-    df2['name'] = df.apply(fun, axis=1)
-    df = pd.concat([df2, df], axis=1)
-    df = df.fillna('-')
-    conn.close
-    embed = discord.Embed(title="Global Leaderboard", color=0x00ff00)
-    embed2 = discord.Embed(title="Global Leaderboard", color=0x00ff00)
-    df_1 = df.iloc[:24,:]
-    df_2 = df.iloc[24:,:]
-    df_1.apply(embedrow, axis=1, em=embed)
-    df_2.apply(embedrow, axis=1, em=embed2)
-    embeds = [embed, embed2]
-    await Paginator.Simple().start(ctx, pages=embeds)
+    else:
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        query = 'SELECT * from player_list'
+        df = pd.read_sql(query, conn)
+        df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        df = df.sort_values('tabloids', ascending=[False])
+        df2 = pd.DataFrame({'name': []})
+        df2['name'] = df.apply(fun, axis=1)
+        df = pd.concat([df2, df], axis=1)
+        df = df.fillna('-')
+        conn.close
+        embed = discord.Embed(title="Global Leaderboard", color=0x00ff00)
+        embed2 = discord.Embed(title="Global Leaderboard", color=0x00ff00)
+        df_1 = df.iloc[:24,:]
+        df_2 = df.iloc[24:,:]
+        df_1.apply(embedrow, axis=1, em=embed)
+        df_2.apply(embedrow, axis=1, em=embed2)
+        embeds = [embed, embed2]
+        await Paginator.Simple().start(ctx, pages=embeds)
     
 
 #provide stats for the user who called the command
 @bot.command(name='stats', help='Shows your personal statistics')
-async def stats(ctx, interaction: discord.Interaction):
-    if(interaction.inGuild()):
+async def stats(ctx):
+    if(ctx.inGuild()):
+        await ctx.reply.message("These commands only work in DM's", ephemeral=True)
         await ctx.message.delete()
-        interaction.response.send_message("These commands only work in DM's", ephemeral=True)
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
-    df = pd.read_sql(query, conn)
+    else:
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
+        df = pd.read_sql(query, conn)
 
-    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
-    df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    df = df.fillna('-')
-    conn.close
+        df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        df = df.fillna('-')
+        conn.close
 
-    embed = discord.Embed(title=f"{ctx.message.author.name}'s stats", color=0x00ff00)
-    df = df.head(1)
-    embed.add_field(name=f"**Tabloids: {df['tabloids'][0]}**", value=f"**Times Tabloided: {df['times_tabloided'][0]}\nK/D Ratio: {df['kd'][0]}**",inline=False)
-    user = await bot.fetch_user(ctx.message.author.id)
-    await user.send(embed=embed)
+        embed = discord.Embed(title=f"{ctx.message.author.name}'s stats", color=0x00ff00)
+        df = df.head(1)
+        embed.add_field(name=f"**Tabloids: {df['tabloids'][0]}**", value=f"**Times Tabloided: {df['times_tabloided'][0]}\nK/D Ratio: {df['kd'][0]}**",inline=False)
+        user = await bot.fetch_user(ctx.message.author.id)
+        await user.send(embed=embed)
 
 @bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
