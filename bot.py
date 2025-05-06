@@ -280,8 +280,8 @@ async def on_ready():
         f'{guild.name}(id: {guild.id})'
     )
     print(f'{bot.user.name} has connected to Discord!')
-    role = discord.utils.find(lambda r: r.name == 'current members', guild.roles)
-    for member in guild.members:
-        if role in member.roles:
-            await member.send("Hi " + {member.name}+ " welcome to the CNET Tabloid!\nThe rules can be found at https://tinyurl.com/mpmkbx9t\nUsage instructions can be found here: https://tinyurl.com/47ppxbvj")
+    # role = discord.utils.find(lambda r: r.name == 'current members', guild.roles)
+    # for member in guild.members:
+    #    if role in member.roles:
+    #        await member.send("Hi " + member.name + " welcome to the CNET Tabloid!\nThe rules can be found at https://tinyurl.com/mpmkbx9t\nUsage instructions can be found here: https://tinyurl.com/47ppxbvj")
 bot.run(TOKEN)
