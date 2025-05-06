@@ -11,11 +11,12 @@ from discord.ext import commands
 ## - sanitize sql input
 ## - if db empty, stats, leaderboard, etc show some sort of error
 ## - export command for leadership
-##
+## - add ID to env
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 DATABASE = os.getenv('DATABASE')
+ID = os.getenv('DATABASE')
 BENCHMARKS = [1, 10, 25, 50, 100]
 
 help_command = commands.DefaultHelpCommand(
@@ -23,9 +24,15 @@ help_command = commands.DefaultHelpCommand(
 )
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command = help_command)
 
+
+async def check_guild(ctx):
+    return ctx.guild.id == ID
+
+
 @bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.', aliases=["tb"])
+@commands.check(check_guild)
 async def add(ctx):
-    #if ctx.message.attachments:
+    if ctx.message.attachments:
         for guild in bot.guilds:
             if guild.name == GUILD:
                 break
@@ -62,10 +69,9 @@ async def add(ctx):
             conn.commit()
         conn.close
         await ctx.message.add_reaction("📸")
-        #await ctx.send(f"{perp.display_name} has tabloided {', '.join(victims)}")
         await benchmarks(perp, ctx)
-    #else:
-    #    await ctx.send(f"Please include your tabloid photo with your message.")
+    else:
+        await ctx.send(f"Please include your tabloid photo with your message.")
 
 async def benchmarks(user, ctx):
     conn = sqlite3.connect(DATABASE)
@@ -83,6 +89,7 @@ async def benchmarks(user, ctx):
             await user.send("You have reached " + record + " tabloids!")
 
 @bot.command(name='undo', help='Undo a tabloid.')
+@commands.check(check_guild)
 async def sub(ctx):
     for guild in bot.guilds:
         if guild.name == GUILD:
@@ -241,6 +248,7 @@ async def stats(ctx):
 
 @bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
+@commands.check(check_guild)
 async def name(ctx, arg: str = commands.parameter(description="Your name")):
     perp = ctx.message.author
     conn = sqlite3.connect(DATABASE)
