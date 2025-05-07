@@ -16,7 +16,7 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 DATABASE = os.getenv('DATABASE')
-ID = os.getenv('DATABASE')
+ID = os.getenv('ID')
 BENCHMARKS = [1, 10, 25, 50, 100]
 
 help_command = commands.DefaultHelpCommand(
