@@ -4,14 +4,10 @@ import sqlite3
 import pandas as pd
 import numpy as np
 import discord
-import Paginator
+import my_paginator
 from dotenv import load_dotenv
 from discord.ext import commands
-## TO-DO
-## - sanitize sql input
-## - if db empty, stats, leaderboard, etc show some sort of error
-## - export command for leadership
-## - add ID to env
+
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
@@ -133,9 +129,9 @@ async def sub(ctx):
 
 def embedrow(row, em):
         if row['name'] == "-" or row['name'] is None:
-            em.add_field(name=f"**{row['discord_username']}**", value=f"> Tabloids: {row['tabloids']}\n>Times Tabloided: {row['times_tabloided']}\n>K/D Ratio: {row['kd']}",inline=False)
+            em.add_field(name=f"**{row['discord_username']}**", value=f">>> Tabloids: {row['tabloids']}\nTimes Tabloided: {row['times_tabloided']}\nK/D Ratio: {row['kd']}",inline=False)
         else:
-            em.add_field(name=f"**{row['name']}**", value=f"> Tabloids: {row['tabloids']}\n>Times Tabloided: {row['times_tabloided']}\n>K/D Ratio: {row['kd']}",inline=False)
+            em.add_field(name=f"**{row['name']}**", value=f">>> Tabloids: {row['tabloids']}\nTimes Tabloided: {row['times_tabloided']}\nK/D Ratio: {row['kd']}",inline=False)
 def fun(row):
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
@@ -152,13 +148,18 @@ def fun(row):
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
 async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
+    user = await bot.fetch_user(ctx.message.author.id)
     conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
+    if(ctx.guild is not None):
+        await ctx.message.delete()
+        await user.send("Please use the `global` command in a direct message with the bot to avoid spamming the server.")
+    if(len(df) == 0):
+        await user.send("Sorry, there's nothing to display yet.")
+        return    
     df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.inf, inplace=True)
-    user = await bot.fetch_user(ctx.message.author.id)
     if arg is None or arg == "kd":
         df = df.sort_values('kd', ascending=[False])
         df = df.head(5)
@@ -192,15 +193,21 @@ async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", de
 
     if(ctx.guild is not None):
         await ctx.message.delete()
-        await user.send("Remember, this command should be used in a direct message with the bot to avoid spamming the server.")
+        await user.send("Please use the `leaderboard` command in a direct message with the bot to avoid spamming the server.")
 
 #whole leaderboard
 @bot.command(name='global', help='Shows global statistics')
 async def global_leaderboard(ctx):
+    user = await bot.fetch_user(ctx.message.author.id)
     conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
     query = 'SELECT * from player_list'
     df = pd.read_sql(query, conn)
+    if(ctx.guild is not None):
+        await ctx.message.delete()
+        await user.send("Please use the `global` command in a direct message with the bot to avoid spamming the server.")
+    if(len(df) == 0):
+        await user.send("Sorry, there's nothing to display yet.")
+        return
     df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.sort_values('tabloids', ascending=[False])
@@ -209,29 +216,33 @@ async def global_leaderboard(ctx):
     df = pd.concat([df2, df], axis=1)
     df = df.fillna('-')
     conn.close
-    embed = discord.Embed(title="Global Leaderboard", color=0x00ff00)
-    embed2 = discord.Embed(title="Global Leaderboard", color=0x00ff00)
-    df_1 = df.iloc[:24,:]
-    df_2 = df.iloc[24:,:]
-    df_1.apply(embedrow, axis=1, em=embed)
-    df_2.apply(embedrow, axis=1, em=embed2)
-    embeds = [embed, embed2]
-    user = await bot.fetch_user(ctx.message.author.id)
-    #await Paginator.Simple().start(ctx, pages=embeds)
-    #TODO: fork Paginator and add sendAsDM argument. publish to pypi
-    if(ctx.guild is not None):
-        await ctx.message.delete()
-        await user.send("Remember, this command should be used in a direct message with the bot to avoid spamming the server.")
+
+    ## build embed
+    embeds = []
+    chunk_size = 5
+    for i in range(0, len(df), chunk_size):
+        embed = discord.Embed(title="Global Leaderboard", color=0x00ff00)
+        df_1 = df.iloc[i:i+chunk_size,:]
+        df_1.apply(embedrow, axis=1, em=embed)
+        embeds.append(embed)
+
+    # send embed
+    await my_paginator.Simple().start(ctx, pages=embeds, sendAsDM=True, user=user)
     
 
 #provide stats for the user who called the command
 @bot.command(name='stats', help='Shows your personal statistics')
 async def stats(ctx):
+    user = await bot.fetch_user(ctx.message.author.id)
+    if(ctx.guild is not None):
+        await ctx.message.delete()
+        await user.send("Please use the `stats` command in a direct message with the bot to avoid spamming the server.")
     conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
     query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
     df = pd.read_sql(query, conn)
-
+    if(len(df) == 0):
+        await user.send("Sorry, you don't have any stats to display yet!")
+        return
     df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.fillna('-')
@@ -240,11 +251,7 @@ async def stats(ctx):
     embed = discord.Embed(title=f"{ctx.message.author.name}'s stats", color=0x00ff00)
     df = df.head(1)
     embed.add_field(name=f"**Tabloids: {df['tabloids'][0]}**", value=f"**Times Tabloided: {df['times_tabloided'][0]}\nK/D Ratio: {df['kd'][0]}**",inline=False)
-    user = await bot.fetch_user(ctx.message.author.id)
     await user.send(embed=embed)
-    if(ctx.guild is not None):
-        await ctx.message.delete()
-        await user.send("Remember, this command should be used in a direct message with the bot to avoid spamming the server.")
 
 @bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
@@ -260,9 +267,27 @@ async def name(ctx, arg: str = commands.parameter(description="Your name")):
 
 @bot.command(name='docs', help='Provides link for more in-depth documentation')
 async def docs(ctx):
-    embed = discord.Embed(color=0x00ff00)
-    embed.add_field(name='Documentation', value="[Here you go!](https://github.com/alexishp80/tabloidbot/blob/main/docs/usage.md)")
-    await ctx.send(embed=embed)
+    await ctx.send("[Here you go!](<https://github.com/alexishp80/tabloidbot/blob/main/docs/usage.md>)")
+
+@bot.command(name='export', help='Exports database as Excel spreadsheet')
+async def export(ctx):
+    user = await bot.fetch_user(ctx.message.author.id)
+    if(ctx.guild is not None):
+            await ctx.message.delete()
+            await user.send("Please use the `export` command in a direct message with the bot to avoid spamming the server.")
+    conn = sqlite3.connect(DATABASE)
+    query = 'SELECT * from player_list'
+    conn.close
+    df = pd.read_sql(query, conn)
+    if(len(df) == 0):
+        await user.send("Sorry, there's nothing to display yet.")
+        return
+    excel_file_path = 'exported_tabloid.xlsx'
+    df.to_excel(excel_file_path, index=False)
+    await ctx.send(file=discord.File(excel_file_path))
+    os.remove(excel_file_path)
+
+
 
 @bot.event
 async def on_ready():

@@ -1,7 +1,7 @@
 # Tabloid Bot Usage
 
 ## Discord Bot Overview
-Discord bots are automated programs that can add additional functionality to a server. You can interact with bots by typing specific commands in the chat, which triggers the bot to perform the desired action. You can use `!help` to recieve a list of all the commands and what they do. 
+Discord bots are automated programs that can add additional functionality to a server. You can interact with bots by typing specific commands in the chat, which triggers the bot to perform the desired action. You can use `!help` to recieve a list of all the commands and their function. From there, you can use `!help [command]` to recieve detailed information on a specific command. 
 
 ## Tabloid Bot Commands
 `!name`: The bot uses your Discord username as an identifier in the database. To make displaying the statistics friendlier, you can use this command to associate your preferred name with your username, and it will appear in the stats and leaderboard commands.
