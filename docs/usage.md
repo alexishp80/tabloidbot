@@ -16,6 +16,8 @@ Discord bots are automated programs that can add additional functionality to a s
 
 `!global`: This shows a global leaderboard with every player. Since the list is so long, the results need to be broken up into pages. 
 
+`!export`: This will produce an Excel spreadsheet of the underlying database. 
+
 The `!stats`, `!leaderboard`, and `!global` commands must be used in a direct message with the bot. 
 
 ## Discord Bot Implementation
