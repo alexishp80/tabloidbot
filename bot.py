@@ -22,7 +22,10 @@ bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_comma
 
 
 async def check_guild(ctx):
-    return str(ctx.guild.id) == ID
+    if(ctx.guild is not None): 
+        return str(ctx.guild.id) == ID
+    else:
+        return False
 
 
 @bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.', aliases=["tb"])
