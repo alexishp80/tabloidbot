@@ -94,40 +94,48 @@ async def sub(ctx):
         if guild.name == GUILD:
             break
     if "section leader" in [role.name for role in ctx.author.roles] or "squid leaders" in [role.name for role in ctx.author.roles] or ctx.message.author == ctx.message.mentions[0]:
-        
+        # the perp is the first mention
         victims = []
         mentionsList = ctx.message.mentions[1:]
         perp = ctx.message.mentions[0]
-        
-        if not mentionsList:
-            await ctx.send(f"Make sure to mention yourself and your innocent victim.")
-        else:
-            conn = sqlite3.connect(DATABASE)
-            c = conn.cursor()
-            #get current value
-            c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
-            record = c.fetchone()[0]
-            #update table
-            c.execute("""UPDATE player_list
-                    SET tabloids = ?
-                    WHERE discord_username = ?
-                    ;""", (int(record)-len(mentionsList), perp.name))   
-            
-            for mention in mentionsList:
-                victims.append(mention.display_name)
-                c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
-                c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
-                record = c.fetchone()[0]
-                c.execute("""UPDATE player_list 
-                    SET times_tabloided = ?
-                    WHERE discord_username = ?
-                    ;""", (int(record)-1, mention.name))
-                conn.commit()
-            conn.close
-            await ctx.message.add_reaction("✅")
-            #await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
+
+    elif ctx.message.author != ctx.message.mentions[0]:
+        # the perp is the author of the message
+        victims = []
+        mentionsList = ctx.message.mentions
+        perp = ctx.message.author
     else:
+        # someone is t
         await ctx.send(f"Please contact leadership to run this command.")
+        return
+    
+    if not mentionsList:
+        await ctx.send(f"Make sure to mention your victim(s).")
+    else:
+        conn = sqlite3.connect(DATABASE)
+        c = conn.cursor()
+        #get current value
+        c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
+        record = c.fetchone()[0]
+        #update table
+        c.execute("""UPDATE player_list
+                SET tabloids = ?
+                WHERE discord_username = ?
+                ;""", (int(record)-len(mentionsList), perp.name))   
+        
+        for mention in mentionsList:
+            victims.append(mention.display_name)
+            c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
+            c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
+            record = c.fetchone()[0]
+            c.execute("""UPDATE player_list 
+                SET times_tabloided = ?
+                WHERE discord_username = ?
+                ;""", (int(record)-1, mention.name))
+            conn.commit()
+        conn.close
+        await ctx.message.add_reaction("✅")
+        #await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
 
 
 def embedrow(row, em):
