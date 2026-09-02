@@ -1,5 +1,6 @@
 # bot.py
 import os
+import sys
 import sqlite3
 import pandas as pd
 import numpy as np
@@ -7,6 +8,8 @@ import discord
 import my_paginator
 from dotenv import load_dotenv
 from discord.ext import commands
+import logging
+import fcntl
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -15,11 +18,34 @@ DATABASE = os.getenv('DATABASE')
 ID = os.getenv('ID')
 BENCHMARKS = [1, 10, 25, 50, 100]
 
+
+# --- single-instance lock ---
+LOCK_PATH = "/tmp/tabloidbot.lock"
+_lock_handle = None  
+
+def acquire_single_instance_lock(path=LOCK_PATH):
+    global _lock_handle
+    lock_file = open(path, "w")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(f"Another instance is already running (lock held on {path}). Exiting.")
+        sys.exit(1)
+    lock_file.write(str(os.getpid()))
+    lock_file.flush()
+    _lock_handle = lock_file
+
+acquire_single_instance_lock()
+# -------------------------
+
+
 help_command = commands.DefaultHelpCommand(
     no_category = 'Commands',
 )
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command = help_command)
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 async def check_guild(ctx):
     if(ctx.guild is not None): 
@@ -31,46 +57,55 @@ async def check_guild(ctx):
 @bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.', aliases=["tb"])
 @commands.check(check_guild)
 async def add(ctx):
-    if ctx.message.attachments:
-        for guild in bot.guilds:
-            if guild.name == GUILD:
-                break
-        mentionsList = ctx.message.mentions
-        victims = []
-        perp = ctx.message.author
-        
-        if not mentionsList: 
-            #list is empty
-            await ctx.send(f"<@{perp.id}> Please mention your victim(s)!")
-            return
-
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (perp.name,))
-        #get current value
-        c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
-        record = c.fetchone()[0]
-        #update table
-        c.execute("""UPDATE player_list
-                SET tabloids = ?
-                WHERE discord_username = ?
-                ;""", (int(record)+len(mentionsList), perp.name))   
-        
-        for mention in mentionsList:
-            victims.append(mention.display_name)
-            c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
-            c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
-            record = c.fetchone()[0]
-            c.execute("""UPDATE player_list 
-                SET times_tabloided = ?
-                WHERE discord_username = ?
-                ;""", (int(record)+1, mention.name))
-            conn.commit()
-        conn.close
-        await ctx.message.add_reaction("📸")
-        await benchmarks(perp, ctx)
-    else:
+    if not ctx.message.attachments:
         await ctx.send(f"Please include your tabloid photo with your message.")
+        return
+    
+    # for guild in bot.guilds:
+    #     if guild.name == GUILD:
+    #         break
+    mentionsList = ctx.message.mentions
+    perp = ctx.message.author
+    
+    if not mentionsList: 
+        #list is empty
+        await ctx.send(f"<@{perp.id}> Please mention your victim(s)!")
+        return
+    
+    victims = []
+    # try catch block here
+
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            c = conn.cursor()
+            c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (perp.name,))
+            #get current value
+            c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
+            record = c.fetchone()[0]
+            #update table
+            c.execute("""UPDATE player_list
+                    SET tabloids = ?
+                    WHERE discord_username = ?
+                    ;""", (int(record)+len(mentionsList), perp.name))   
+            
+            for mention in mentionsList:
+                victims.append(mention.display_name)
+                c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
+                c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
+                record = c.fetchone()[0]
+                c.execute("""UPDATE player_list 
+                    SET times_tabloided = ?
+                    WHERE discord_username = ?
+                    ;""", (int(record)+1, mention.name))
+                conn.commit()
+            conn.close
+
+    except sqlite3.Error as e:
+        logger.exception("DB error in add()")
+        #await ctx.send("A database error occurred. Try again later.")
+        return
+    await ctx.message.add_reaction("📸")
+    await benchmarks(perp, ctx)
 
 async def benchmarks(user, ctx):
     conn = sqlite3.connect(DATABASE)
