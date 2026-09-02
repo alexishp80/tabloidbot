@@ -42,28 +42,33 @@ acquire_single_instance_lock()
 help_command = commands.DefaultHelpCommand(
     no_category = 'Commands',
 )
-bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command = help_command)
+intents = discord.Intents.default()
+intents.message_content = True   # needed to read '!' commands
+intents.members = True           # needed for ctx.author.roles / member lookups
+bot = commands.Bot(command_prefix='!', intents=intents, help_command=help_command)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def check_guild(ctx):
-    if(ctx.guild is not None): 
+@bot.check
+async def globally_restrict_guild(ctx):
+    if ctx.guild is not None:
         return str(ctx.guild.id) == ID
-    else:
-        return False
+    return True  # allow DMs (leaderboard/stats/export rely on DMs)
 
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        return  # silently ignore commands from the wrong guild
+    logger.exception("Unhandled command error", exc_info=error)
 
 @bot.command(name='tabloid', help='Tabloids another CNET. You must mention your victims.', aliases=["tb"])
-@commands.check(check_guild)
 async def add(ctx):
     if not ctx.message.attachments:
         await ctx.send(f"Please include your tabloid photo with your message.")
         return
     
-    # for guild in bot.guilds:
-    #     if guild.name == GUILD:
-    #         break
     mentionsList = ctx.message.mentions
     perp = ctx.message.author
     
@@ -98,11 +103,11 @@ async def add(ctx):
                     WHERE discord_username = ?
                     ;""", (int(record)+1, mention.name))
                 conn.commit()
-            conn.close
+            conn.close()
 
     except sqlite3.Error as e:
         logger.exception("DB error in add()")
-        #await ctx.send("A database error occurred. Try again later.")
+        await ctx.send("A database error occurred. Try again later.")
         return
     await ctx.message.add_reaction("📸")
     await benchmarks(perp, ctx)
@@ -120,14 +125,15 @@ async def benchmarks(user, ctx):
             await user.send("Congrats on your first tabloid!")
         else: 
             print("bruh")
-            await user.send("You have reached " + record + " tabloids!")
+            await user.send("You have reached " + str(record) + " tabloids!")
 
 @bot.command(name='undo', help='Undo a tabloid.')
-@commands.check(check_guild)
+@commands.guild_only()
 async def sub(ctx):
-    for guild in bot.guilds:
-        if guild.name == GUILD:
-            break
+    if not ctx.message.mentions:
+        await ctx.send(f"Make sure to mention your victim(s).")
+        return
+
     if "section leader" in [role.name for role in ctx.author.roles] or "squid leaders" in [role.name for role in ctx.author.roles] or ctx.message.author == ctx.message.mentions[0]:
         # the perp is the first mention
         victims = []
@@ -143,34 +149,31 @@ async def sub(ctx):
         # someone is t
         await ctx.send(f"Please contact leadership to run this command.")
         return
+
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    #get current value
+    c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
+    record = c.fetchone()[0]
+    #update table
+    c.execute("""UPDATE player_list
+            SET tabloids = ?
+            WHERE discord_username = ?
+            ;""", (int(record)-len(mentionsList), perp.name))   
     
-    if not mentionsList:
-        await ctx.send(f"Make sure to mention your victim(s).")
-    else:
-        conn = sqlite3.connect(DATABASE)
-        c = conn.cursor()
-        #get current value
-        c.execute("""SELECT tabloids from player_list WHERE discord_username = ?""", (perp.name,))
+    for mention in mentionsList:
+        victims.append(mention.display_name)
+        c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
+        c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
         record = c.fetchone()[0]
-        #update table
-        c.execute("""UPDATE player_list
-                SET tabloids = ?
-                WHERE discord_username = ?
-                ;""", (int(record)-len(mentionsList), perp.name))   
-        
-        for mention in mentionsList:
-            victims.append(mention.display_name)
-            c.execute("""INSERT OR IGNORE INTO player_list (discord_username, tabloids, times_tabloided) VALUES (?, 0,0)""", (mention.name,))
-            c.execute("""SELECT times_tabloided from player_list WHERE discord_username = ?""", (mention.name,))
-            record = c.fetchone()[0]
-            c.execute("""UPDATE player_list 
-                SET times_tabloided = ?
-                WHERE discord_username = ?
-                ;""", (int(record)-1, mention.name))
-            conn.commit()
-        conn.close
-        await ctx.message.add_reaction("✅")
-        #await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
+        c.execute("""UPDATE player_list 
+            SET times_tabloided = ?
+            WHERE discord_username = ?
+            ;""", (int(record)-1, mention.name))
+        conn.commit()
+    conn.close()
+    await ctx.message.add_reaction("✅")
+    #await ctx.send(f"Undid tabloid by {perp.display_name} for victims {', '.join(victims)}")
 
 
 def embedrow(row, em):
@@ -178,103 +181,71 @@ def embedrow(row, em):
             em.add_field(name=f"**{row['discord_username']}**", value=f">>> Tabloids: {row['tabloids']}\nTimes Tabloided: {row['times_tabloided']}\nK/D Ratio: {row['kd']}",inline=False)
         else:
             em.add_field(name=f"**{row['name']}**", value=f">>> Tabloids: {row['tabloids']}\nTimes Tabloided: {row['times_tabloided']}\nK/D Ratio: {row['kd']}",inline=False)
-def fun(row):
-    conn = sqlite3.connect(DATABASE)
-    c = conn.cursor()
-    c.execute("""SELECT name from username_list WHERE discord_username = ?""", (row['discord_username'],))
-    record = c.fetchone()
-    if record is None:
-        return
-    else:
-        record = record[0]
-        conn.close
-        return record
+
 
 #queries database and produces a leaderboard
 #with different sortings, such as tabloids, tabloided, and k/d
 @bot.command(name='leaderboard', help='Shows top 5 players and stats')
-async def leaderboard(ctx, arg:  str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
+async def leaderboard(ctx, arg: str = commands.parameter(default="tabloids", description="tabloids, tabloided, or kd for various tables")):
     user = await bot.fetch_user(ctx.message.author.id)
-    conn = sqlite3.connect(DATABASE)
-    query = 'SELECT * from player_list'
-    df = pd.read_sql(query, conn)
-    if(ctx.guild is not None):
-        await ctx.message.delete()
-        await user.send("Please use the `global` command in a direct message with the bot to avoid spamming the server.")
-    if(len(df) == 0):
-        await user.send("Sorry, there's nothing to display yet.")
-        return    
-    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
-    df.replace([np.inf, -np.inf], np.inf, inplace=True)
-    if arg is None or arg == "kd":
-        df = df.sort_values('kd', ascending=[False])
-        df = df.head(5)
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df = df.fillna('-')
-        df['name'] = df.apply(fun, axis=1)
-        embed = discord.Embed(title="K/D Ratio Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await user.send(embed=embed)
-    elif(arg == "tabloids"):
-        df = df.sort_values('tabloids', ascending=[False])
-        df = df.head(5)
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df = df.fillna('-')
-        df['name'] = df.apply(fun, axis=1)
-        embed = discord.Embed(title="Tabloids Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await user.send(embed=embed)
-    else: #(arg == "tabloided")
-        df = df.sort_values('times_tabloided', ascending=[False])
-        df = df.head(5)
-        df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        df = df.fillna('-')
-        df['name'] = df.apply(fun, axis=1)
-        embed = discord.Embed(title="Most Tabloided Leaderboard", color=0x00ff00)
-        df.apply(embedrow, axis=1, em=embed)
-        conn.close
-        await user.send(embed=embed)
 
-    if(ctx.guild is not None):
+    if ctx.guild is not None:
         await ctx.message.delete()
         await user.send("Please use the `leaderboard` command in a direct message with the bot to avoid spamming the server.")
+        return
+
+    conn = sqlite3.connect(DATABASE)
+    query = """SELECT p.*, u.name FROM player_list p LEFT JOIN username_list u ON u.discord_username = p.discord_username"""
+    df = pd.read_sql(query, conn)
+    conn.close()
+
+    if len(df) == 0:
+        await user.send("Sorry, there's nothing to display yet.")
+        return
+
+    df['kd'] = round(df['tabloids'] / df['times_tabloided'], 2)
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    sort_col = arg if arg in ("kd", "tabloids") else "times_tabloided"
+    title = {"kd": "K/D Ratio Leaderboard", "tabloids": "Tabloids Leaderboard"}.get(arg, "Most Tabloided Leaderboard")
+
+    df = df.sort_values(sort_col, ascending=False).head(5).fillna('-')
+
+    embed = discord.Embed(title=title, color=0x00ff00)
+    df.apply(embedrow, axis=1, em=embed)
+    await user.send(embed=embed)
+
 
 #whole leaderboard
 @bot.command(name='global', help='Shows global statistics')
 async def global_leaderboard(ctx):
     user = await bot.fetch_user(ctx.message.author.id)
-    conn = sqlite3.connect(DATABASE)
-    query = 'SELECT * from player_list'
-    df = pd.read_sql(query, conn)
-    if(ctx.guild is not None):
+
+    if ctx.guild is not None:
         await ctx.message.delete()
         await user.send("Please use the `global` command in a direct message with the bot to avoid spamming the server.")
-    if(len(df) == 0):
+        return
+
+    conn = sqlite3.connect(DATABASE)
+    query = """SELECT p.*, u.name FROM player_list p LEFT JOIN username_list u ON u.discord_username = p.discord_username"""
+    df = pd.read_sql(query, conn)
+    conn.close()
+
+    if len(df) == 0:
         await user.send("Sorry, there's nothing to display yet.")
         return
-    df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
-    df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    df = df.sort_values('tabloids', ascending=[False])
-    df2 = pd.DataFrame({'name': []})
-    df2['name'] = df.apply(fun, axis=1)
-    df = pd.concat([df2, df], axis=1)
-    df = df.fillna('-')
-    conn.close
 
-    ## build embed
+    df['kd'] = round(df['tabloids'] / df['times_tabloided'], 2)
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df = df.sort_values('tabloids', ascending=False).fillna('-')
+
     embeds = []
-    chunk_size = 5
-    for i in range(0, len(df), chunk_size):
+    for i in range(0, len(df), 5):
         embed = discord.Embed(title="Global Leaderboard", color=0x00ff00)
-        df_1 = df.iloc[i:i+chunk_size,:]
-        df_1.apply(embedrow, axis=1, em=embed)
+        df.iloc[i:i+5].apply(embedrow, axis=1, em=embed)
         embeds.append(embed)
 
-    # send embed
     await my_paginator.Simple().start(ctx, pages=embeds, sendAsDM=True, user=user)
-    
 
 #provide stats for the user who called the command
 @bot.command(name='stats', help='Shows your personal statistics')
@@ -283,16 +254,17 @@ async def stats(ctx):
     if(ctx.guild is not None):
         await ctx.message.delete()
         await user.send("Please use the `stats` command in a direct message with the bot to avoid spamming the server.")
+        return
     conn = sqlite3.connect(DATABASE)
-    query = "SELECT * from player_list WHERE discord_username = '{}'".format(ctx.message.author.name)
-    df = pd.read_sql(query, conn)
+    query = "SELECT * from player_list WHERE discord_username = ?"
+    df = pd.read_sql(query, conn, params=(ctx.message.author.name,))
     if(len(df) == 0):
         await user.send("Sorry, you don't have any stats to display yet!")
         return
     df['kd'] = round(df['tabloids']/df['times_tabloided'], 2)
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df = df.fillna('-')
-    conn.close
+    conn.close()
 
     embed = discord.Embed(title=f"{ctx.message.author.name}'s stats", color=0x00ff00)
     df = df.head(1)
@@ -301,14 +273,13 @@ async def stats(ctx):
 
 @bot.command(name='name', help='Associate your name with your username')
 #add text to the username list table
-@commands.check(check_guild)
 async def name(ctx, arg: str = commands.parameter(description="Your name")):
     perp = ctx.message.author
     conn = sqlite3.connect(DATABASE)
     c = conn.cursor()
     c.execute("""INSERT OR REPLACE INTO username_list (discord_username, name) VALUES (?, ?)""", (perp.name, arg))
     conn.commit()
-    conn.close
+    conn.close()
     await ctx.send("Name updated")
 
 @bot.command(name='docs', help='Provides link for more in-depth documentation')
@@ -321,16 +292,17 @@ async def export(ctx):
     if(ctx.guild is not None):
             await ctx.message.delete()
             await user.send("Please use the `export` command in a direct message with the bot to avoid spamming the server.")
+            return
     conn = sqlite3.connect(DATABASE)
     query = 'SELECT * from player_list'
-    conn.close
     df = pd.read_sql(query, conn)
+    conn.close()
     if(len(df) == 0):
         await user.send("Sorry, there's nothing to display yet.")
         return
     excel_file_path = 'exported_tabloid.xlsx'
     df.to_excel(excel_file_path, index=False)
-    await ctx.send(file=discord.File(excel_file_path))
+    await user.send(file=discord.File(excel_file_path))
     os.remove(excel_file_path)
 
 
@@ -353,7 +325,7 @@ async def on_ready():
              name string NOT NULL
              )""".format("username_list"))
     conn.commit()
-    conn.close
+    conn.close()
     print(
         f'{bot.user.name} is connected to the following guild:\n'
         f'{guild.name}(id: {guild.id})'
