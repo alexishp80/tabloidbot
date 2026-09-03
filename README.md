@@ -22,3 +22,23 @@ Then, run the app
 ```
 python3 bot.py
 ``` 
+
+Alternatively, you can run the bot as a service.
+
+```
+#/etc/systemd/system/tabloid.service
+
+[Unit]
+Description=Boot Script for Tabloid Bot
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+WorkingDirectory=git_repo_root_path
+ExecStart=/usr/bin/python3 git_repo_root_path/bot.py
+User=apaul
+
+[Install]
+WantedBy=multi-user.target
+```
