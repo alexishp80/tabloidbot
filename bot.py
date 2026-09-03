@@ -102,8 +102,6 @@ async def add(ctx):
                     SET times_tabloided = ?
                     WHERE discord_username = ?
                     ;""", (int(record)+1, mention.name))
-                conn.commit()
-            conn.close()
 
     except sqlite3.Error as e:
         logger.exception("DB error in add()")
