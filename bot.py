@@ -317,8 +317,8 @@ async def on_ready():
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS {}(
              discord_username string NOT NULL UNIQUE,
-             tabloids,
-             times_tabloided
+             tabloids INTEGER,
+             times_tabloided INTEGER
              )""".format("player_list"))
     c.execute("""CREATE TABLE IF NOT EXISTS {} (
              discord_username string NOT NULL UNIQUE,
